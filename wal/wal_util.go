@@ -1,7 +1,6 @@
 package wal
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"hash/crc32"
@@ -24,9 +23,10 @@ func FindOldestSegmentFile(files []string) (string, error) {
 		}
 		if oldestSegmentId > segmentId {
 			oldestSegmentId = segmentId
-			oldestSegmentFile = fileName
+			oldestSegmentFile = file
 		}
 	}
+	fmt.Println(oldestSegmentFile)
 	return oldestSegmentFile, nil
 }
 
@@ -101,7 +101,7 @@ func findLastLogRecord(currentSegmentFile *os.File) (*WAL_Record, error) {
 					return nil, err
 				}
 
-				record, err := UnMarshallRecordAndVerify(data)
+				record, err := DeserializeWAL_Record(data)
 
 				if err != nil {
 					return nil, err
@@ -125,18 +125,6 @@ func findLastLogRecord(currentSegmentFile *os.File) (*WAL_Record, error) {
 	}
 }
 
-func UnMarshallRecordAndVerify(data []byte) (*WAL_Record, error) {
-	buff := bytes.NewBuffer(data)
-	var record *WAL_Record
-	if err := binary.Read(buff, binary.LittleEndian, &record); err != nil {
-		return nil, err
-	}
-	if !verifyCRC(record) {
-		return nil, fmt.Errorf("CRC mismatch: data may be corrupted")
-	}
-	return record, nil
-}
-
 func verifyCRC(record *WAL_Record) bool {
 	return GetCRC32Hash(record.logSequenceNumber, record.data) == record.CRC
 }
@@ -151,22 +139,48 @@ func GetCRC32Hash(logSequenceNumber uint64, data []byte) uint32 {
 	return crc32.ChecksumIEEE(byteData)
 }
 
-func Serialize(record *WAL_Record) []byte {
-	// LSN (8 bytes) + CRC (4 bytes) + data 
+func SerializeWAL_Record(record *WAL_Record) []byte {
+	// LSN (8 bytes) + CRC (4 bytes) + data
 	size := 8 + 4 + len(record.data)
 	buff := make([]byte, size)
 	offset := 0 // to maintain the buffer position
 
 	// write lsn
-	binary.LittleEndian.AppendUint64(buff[offset:], record.logSequenceNumber)
+	binary.LittleEndian.PutUint64(buff[offset:offset+8], record.logSequenceNumber)
 	offset += 8
 
 	// write crc
-	binary.LittleEndian.AppendUint32(buff[offset:], record.CRC)
+	binary.LittleEndian.PutUint32(buff[offset:offset+4], record.CRC)
 	offset += 4
 
 	// write data
-	copy(buff[offset:], record.data)
+	copy(buff[offset:offset+len(record.data)], record.data)
 
 	return buff
+}
+
+func DeserializeWAL_Record(data []byte) (*WAL_Record, error) {
+	if len(data) < 12 {
+		return nil, fmt.Errorf("data too short: expected at least 12 bytes")
+	}
+
+	record := &WAL_Record{}
+	offset := 0
+
+	// read lsn
+	record.logSequenceNumber = binary.LittleEndian.Uint64(data[offset : offset+8])
+	offset += 8
+
+	// read crc32 hash
+	record.CRC = binary.LittleEndian.Uint32(data[offset : offset+4])
+	offset += 4
+
+	// read the actual data
+	record.data = make([]byte, len(data)-offset)
+	copy(record.data, data[offset:])
+
+	if !verifyCRC(record) {
+		return nil, fmt.Errorf("CRC mismatch: data may be corrupted")
+	}
+	return record, nil 
 }
