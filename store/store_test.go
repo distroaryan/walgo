@@ -4,6 +4,7 @@ import (
 	// "fmt"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 
 	"os"
 	"testing"
@@ -24,7 +25,6 @@ const (
 
 func TestStore_SETAndGET(t *testing.T) {
 	directory := "TestStore_SETAndGET"
-	defer os.RemoveAll(directory)
 
 	store, err := InitializeStore(directory)
 	require.NoError(t, err, ErrorInitialisingStore)
@@ -49,6 +49,8 @@ func TestStore_SETAndGET(t *testing.T) {
 		assert.Equal(t, unmarshalledRecord.Value, value, ErrorInvalidValueFound)
 	}
 
+	// cleanup
+	cleanup(directory)
 }
 
 func TestStore_RecoverWrite(t *testing.T) {
@@ -82,4 +84,24 @@ func TestStore_RecoverWrite(t *testing.T) {
 		assert.NoError(t, err, ErrorGettingTheValue)
 		assert.Equal(t, expectedValue, actualValue, ErrorInvalidValueFound)
 	}
+
+	cleanup(directory)
+}
+
+// cleanup closes all the file handles and removes the directory
+func cleanup(directory string) error {
+	files, err := filepath.Glob(directory)
+	if err != nil{
+		return err 
+	}
+
+	for _, filepath := range files {
+		file, err := os.OpenFile(filepath, os.O_RDONLY, 0644)
+		if err != nil {
+			return err 
+		}
+		err = file.Close()
+	}
+	os.RemoveAll(directory)
+	return nil
 }

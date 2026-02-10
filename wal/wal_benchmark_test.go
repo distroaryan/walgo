@@ -110,16 +110,14 @@ func BenchmarkConcurrentWriteThroughPut(b *testing.B) {
 	totalEntries := 100 * 10000
 	var wg sync.WaitGroup
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	
+	for b.Loop() {
 		start := time.Now()
 		// spin up 100 go routines
-		for j := 0; j < 100; j++ {
-			wg.Add(1)
+		for range 100 {
 			// each go routine performs 10,000 entries
-			go func() {
-				defer wg.Done()
-				for k := 0; k < 10000; k++ {
+			wg.Go(func() {
+				for k := range 10000 {
 					record := Record{
 						Key:   fmt.Sprintf("key%d", k),
 						Value: fmt.Sprintf("value%d", k),
@@ -135,7 +133,7 @@ func BenchmarkConcurrentWriteThroughPut(b *testing.B) {
 						b.Error(ErrorWritingEntryToWAL)
 					}
 				}
-			}()
+			})
 		}
 		wg.Wait()
 		duration := time.Since(start)

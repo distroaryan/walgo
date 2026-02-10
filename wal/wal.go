@@ -134,11 +134,11 @@ func (wal *WAL) writeEntry(data []byte, isCheckPoint bool) error {
 		return err
 	}
 
-	// if isCheckPoint {
-	// 	if err := wal.Sync(); err != nil {
-	// 		return fmt.Errorf("could not create checkpoint, error while syncing: %v", err)
-	// 	}
-	// }
+	if isCheckPoint {
+		if err := wal.Sync(); err != nil {
+			return fmt.Errorf("could not create checkpoint, error while syncing: %v", err)
+		}
+	}
 
 	// create the entry
 	wal.lastLogSequenceNumber++
