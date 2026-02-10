@@ -18,7 +18,7 @@ import (
 // We will sync the current active segment after every syncInterval
 // every segment will have a name segement-1, segment-2, segment-3
 const (
-	syncInterval  = 500 * time.Millisecond
+	syncInterval  = 500 * time.Millisecond 
 	SegmentPrefix = "segment-"
 )
 
@@ -26,7 +26,6 @@ const (
 type WAL struct {
 	directory             string
 	currentSegmentFile    *os.File
-	lock                  sync.Mutex
 	lastLogSequenceNumber uint64
 	bufferFileWriter      *bufio.Writer
 	syncTimer             *time.Timer
@@ -34,6 +33,7 @@ type WAL struct {
 	maxFileSize           int64
 	maxSegments           int
 	currentSegmentIndex   int
+	lock                  sync.Mutex
 	ctx                   context.Context
 	cancel                context.CancelFunc
 }
@@ -269,20 +269,23 @@ func (wal *WAL) ReadAllLogsFromOffset(offset int) ([]*WAL_Record, error) {
 	for _, file := range files {
 		_, filename := filepath.Split(file)
 		segmentIndex, err := strconv.Atoi(strings.TrimPrefix(filename, SegmentPrefix))
+		if err != nil {
+			return nil, err
+		}
 
 		if segmentIndex < offset {
 			continue
 		}
 
 		file, err := os.OpenFile(file, os.O_RDONLY, 0644)
-
 		if err != nil {
-			return records, err
+			return nil, err
 		}
+		defer file.Close()
 
 		records_from_segment, err := readAllRecordsFromFile(file)
 		if err != nil {
-			return records, err
+			return nil, err
 		}
 		records = append(records, records_from_segment...)
 	}
@@ -325,7 +328,7 @@ func (wal *WAL) backgroundSync() {
 		case <-wal.syncTimer.C:
 			wal.lock.Lock()
 			err := wal.Sync()
-			defer wal.lock.Unlock()
+			wal.lock.Unlock()
 
 			if err != nil {
 				log.Printf("Error while performing sync: %v", err)

@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
 
 	// "strings"
 	"testing"
@@ -149,6 +151,7 @@ func TestWAL_Rotation(t *testing.T) {
 	}
 }
 
+// Test to verify the segments are successfully deleted after exceeding maxSegmentSize
 func TestWAL_OldestSegmentDeletion(t *testing.T) {
 	directory := "TestWAL_OldestSegmentDeletion"
 	defer os.RemoveAll(directory)
@@ -157,7 +160,6 @@ func TestWAL_OldestSegmentDeletion(t *testing.T) {
 	smallSegmentSize := 2
 	wal, err := OpenWAL(directory, false, int64(smallMaxFileSize), smallSegmentSize)
 	require.NoError(t, err, ErrorInitialisingWAL)
-	defer wal.Close()
 
 	largeValue := strings.Repeat("a", 12*1024) // 12kb
 	records := []Record{
@@ -189,6 +191,96 @@ func TestWAL_OldestSegmentDeletion(t *testing.T) {
 	}
 }
 
+// Test to verify the previosuly created files are readable
+func TestWAL_ReadFromOffsetIndex(t *testing.T) {
+	directory := "TestWAL_ReadFromOffsetIndex"
+	defer os.RemoveAll(directory)
+
+	smallMaxFileSize := 10 * 1024 // small file size to create multiple files
+	wal, err := OpenWAL(directory, false, int64(smallMaxFileSize), maxSegments)
+	require.NoError(t, err, ErrorInitialisingWAL)
+
+	records := generateLargeTestRecords(4)
+
+	for _, rec := range records {
+		marshalledRecord, err := json.Marshal(rec)
+		assert.NoError(t, err, ErrorMarshallingRecord)
+
+		err = wal.WriteEntry(marshalledRecord)
+		assert.NoError(t, err, ErrorWritingEntryToWAL)
+	}
+
+	err = wal.Close()
+	assert.NoError(t, err, ErrorClosingWAL)
+
+	recoveredRecords, err := wal.ReadAllLogsFromOffset(0)
+	assert.NoError(t, err, ErrorReadingFromWAL)
+	assertCollectionsAreIdentical(t, records, recoveredRecords)
+}
+
+// Test concurrent read and write
+func TestWAL_ConcurrentReadAndWrite(t *testing.T) {
+	directory := "TestWaL_ConcurrentReadAndWrite"
+	defer os.RemoveAll(directory)
+
+	wal, err := OpenWAL(directory, false, maxFileSize, maxSegments)
+	assert.NoError(t, err, ErrorInitialisingWAL)
+
+	numRecords := 100
+	records := generateTestRecords(numRecords)
+	var wg sync.WaitGroup
+	wg.Add(numRecords)
+
+	for _, rec := range records {
+		marshalledRecord, err := json.Marshal(rec)
+		assert.NoError(t, err, ErrorMarshallingRecord)
+
+		go func () {
+			defer wg.Done()
+			err := wal.WriteEntry(marshalledRecord)
+			assert.NoError(t, err, ErrorWritingEntryToWAL)
+		}()
+	}
+
+	wg.Wait()
+
+	err = wal.Close()
+	assert.NoError(t, err, ErrorClosingWAL)
+
+	recoveredEntries, err := wal.ReadCurrentFileLogs()
+	assert.NoError(t, err, ErrorReadingFromWAL)
+
+	// the order is not preserved during concurrent, there's a chance 100th entry 
+	// was written first and 0th entry was written last
+
+	// the check we can do is make sure the entry key-d, value-d are present
+	// the d value should be [0, numRecords]
+
+	keyArray := make([]bool, numRecords)
+	valueArray := make([]bool, numRecords)
+	for _, rec := range recoveredEntries {
+		unmarshalledRecord := Record{}
+		err := json.Unmarshal(rec.data, &unmarshalledRecord)
+		assert.NoError(t, err, ErrorMarshallingRecord)
+
+		key, value := unmarshalledRecord.Key, unmarshalledRecord.Value
+		keyIdx, err := strconv.Atoi(strings.TrimPrefix(key, "key"))
+		assert.NoError(t, err, "Error extracting key index")
+
+		valueIdx, err := strconv.Atoi(strings.TrimPrefix(value, "value"))
+		assert.NoError(t, err, "Error extracting value index")
+
+		keyArray[keyIdx] = true
+		valueArray[valueIdx] = true 
+	}
+
+	for idx := range numRecords {
+		if !keyArray[idx] || !valueArray[idx] {
+			t.Errorf("%d value missing in either key or value", idx)
+		}
+	}
+}
+
 func assertCollectionsAreIdentical(t *testing.T, entries []Record, recoveredEntries []*WAL_Record) {
 	t.Helper()
 	assert.Equal(t, len(entries), len(recoveredEntries), "Failed too read all the recods")
@@ -211,9 +303,25 @@ func generateTestRecords(length int) []Record {
 	var ops = [2]Opbyte{InsertOperation, DeleteOperation} // for assigning alternate operations
 	for idx := range length {
 		records[idx] = Record{
-			Key:   fmt.Sprintf("Key%d", idx),
-			Value: fmt.Sprintf("Value%d", idx),
+			Key:   fmt.Sprintf("key%d", idx),
+			Value: fmt.Sprintf("value%d", idx),
 			Op:    ops[idx%2],
+		}
+	}
+	return records
+}
+
+// for generating large test dummy data
+func generateLargeTestRecords(length int) []Record {
+	largeValue := strings.Repeat("a", 12*1024)
+	records := make([]Record, length)
+	var ops = [2]Opbyte{InsertOperation, DeleteOperation}
+
+	for idx := range length {
+		records[idx] = Record{
+			Key: fmt.Sprintf("key%d",idx),
+			Value: largeValue,
+			Op: ops[idx%2],
 		}
 	}
 	return records

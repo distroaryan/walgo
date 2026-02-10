@@ -26,7 +26,6 @@ func FindOldestSegmentFile(files []string) (string, error) {
 			oldestSegmentFile = file
 		}
 	}
-	fmt.Println(oldestSegmentFile)
 	return oldestSegmentFile, nil
 }
 
