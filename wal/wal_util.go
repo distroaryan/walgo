@@ -61,7 +61,7 @@ func FindLastLogSequenceNumber(currentSegmentFile *os.File) (uint64, error) {
 	}
 
 	if record != nil {
-		return record.logSequenceNumber, nil
+		return record.LogSequenceNumber, nil
 	}
 	return 0, nil
 }
@@ -125,7 +125,7 @@ func findLastLogRecord(currentSegmentFile *os.File) (*WAL_Record, error) {
 }
 
 func verifyCRC(record *WAL_Record) bool {
-	return GetCRC32Hash(record.logSequenceNumber, record.data) == record.CRC
+	return GetCRC32Hash(record.LogSequenceNumber, record.Data) == record.CRC
 }
 
 func GetCRC32Hash(logSequenceNumber uint64, data []byte) uint32 {
@@ -140,12 +140,12 @@ func GetCRC32Hash(logSequenceNumber uint64, data []byte) uint32 {
 
 func SerializeWAL_Record(record *WAL_Record) []byte {
 	// LSN (8 bytes) + CRC (4 bytes) + data
-	size := 8 + 4 + len(record.data)
+	size := 8 + 4 + len(record.Data)
 	buff := make([]byte, size)
 	offset := 0 // to maintain the buffer position
 
 	// write lsn
-	binary.LittleEndian.PutUint64(buff[offset:offset+8], record.logSequenceNumber)
+	binary.LittleEndian.PutUint64(buff[offset:offset+8], record.LogSequenceNumber)
 	offset += 8
 
 	// write crc
@@ -153,7 +153,7 @@ func SerializeWAL_Record(record *WAL_Record) []byte {
 	offset += 4
 
 	// write data
-	copy(buff[offset:offset+len(record.data)], record.data)
+	copy(buff[offset:offset+len(record.Data)], record.Data)
 
 	return buff
 }
@@ -167,7 +167,7 @@ func DeserializeWAL_Record(data []byte) (*WAL_Record, error) {
 	offset := 0
 
 	// read lsn
-	record.logSequenceNumber = binary.LittleEndian.Uint64(data[offset : offset+8])
+	record.LogSequenceNumber = binary.LittleEndian.Uint64(data[offset : offset+8])
 	offset += 8
 
 	// read crc32 hash
@@ -175,8 +175,8 @@ func DeserializeWAL_Record(data []byte) (*WAL_Record, error) {
 	offset += 4
 
 	// read the actual data
-	record.data = make([]byte, len(data)-offset)
-	copy(record.data, data[offset:])
+	record.Data = make([]byte, len(data)-offset)
+	copy(record.Data, data[offset:])
 
 	if !verifyCRC(record) {
 		return nil, fmt.Errorf("CRC mismatch: data may be corrupted")

@@ -1,4 +1,13 @@
-.PHONY: test
+.PHONY: test bench
 
-test:
-	gotestsum --format testname -- ./wal/...
+test-wal:
+	gotestsum --format testname -- -v ./wal/...
+
+bench-wal:
+	go test -bench=. -benchmem ./wal/...
+
+test-store:
+	gotestsum --format testname -- ./store/...
+
+bench-store:
+	go test -bench=. -benchmem ./store/...

@@ -260,7 +260,7 @@ func TestWAL_ConcurrentReadAndWrite(t *testing.T) {
 	valueArray := make([]bool, numRecords)
 	for _, rec := range recoveredEntries {
 		unmarshalledRecord := Record{}
-		err := json.Unmarshal(rec.data, &unmarshalledRecord)
+		err := json.Unmarshal(rec.Data, &unmarshalledRecord)
 		assert.NoError(t, err, ErrorMarshallingRecord)
 
 		key, value := unmarshalledRecord.Key, unmarshalledRecord.Value
@@ -287,7 +287,7 @@ func assertCollectionsAreIdentical(t *testing.T, entries []Record, recoveredEntr
 
 	for recordIdx, rec := range recoveredEntries {
 		unmarshalledRecord := Record{}
-		err := json.Unmarshal(rec.data, &unmarshalledRecord)
+		err := json.Unmarshal(rec.Data, &unmarshalledRecord)
 		assert.NoError(t, err, ErrorMarshallingRecord)
 
 		// matching the entries one by one for clear error statement

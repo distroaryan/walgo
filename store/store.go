@@ -58,10 +58,10 @@ func (s *Store) SET(key, value string) error {
 	}
 	err = s.wal.WriteEntry(marshalledRecord)
 	if err != nil {
-		return fmt.Errorf("Failed to write entry to WAL")
+		return fmt.Errorf("Failed to write entry to WAL: %v", err)
 	}
 
-	err = s.wal.Close()
+	err = s.wal.Sync()
 	if err != nil {
 		return fmt.Errorf("Failed to sync the entries")
 	}
@@ -90,7 +90,7 @@ func (s *Store) DELETE(key string) error {
 	if err != nil {
 		return fmt.Errorf("Failed to write entry to WAL")
 	}
-	err = s.wal.Close()
+	err = s.wal.Sync()
 	if err != nil {
 		return fmt.Errorf("Failed to sync the entries")
 	}
@@ -102,14 +102,28 @@ func (s *Store) DELETE(key string) error {
 
 func (s *Store) Recover() error {
 	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	recoveredEntries, err := s.wal.ReadAllLogsFromOffset(0)
 	if err != nil {
 		return err 
 	}
-
+	s.lock.Unlock()
+	
 	// unmarshall and apply the operations
-	fmt.Println("recoveredEntries: ", recoveredEntries)
+	for _, walRecords := range recoveredEntries {
+		unmarshalledRecord := wal.Record{}
+		err := json.Unmarshal(walRecords.Data, &unmarshalledRecord)
+		if err != nil {
+			return err 
+		}
+
+		key, value := unmarshalledRecord.Key, unmarshalledRecord.Value
+		op := unmarshalledRecord.Op
+
+		if op == wal.InsertOperation {
+			s.SET(key, value)
+		} else{
+			s.DELETE(key)
+		}
+	}
 	return nil
 }

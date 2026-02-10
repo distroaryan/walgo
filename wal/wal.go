@@ -40,9 +40,9 @@ type WAL struct {
 
 // WAL entry -> one entry/record in the segment
 type WAL_Record struct {
-	logSequenceNumber uint64
+	LogSequenceNumber uint64
 	CRC               uint32
-	data              []byte
+	Data              []byte
 	isCheckPoint      bool
 }
 
@@ -143,8 +143,8 @@ func (wal *WAL) writeEntry(data []byte, isCheckPoint bool) error {
 	// create the entry
 	wal.lastLogSequenceNumber++
 	record := &WAL_Record{
-		logSequenceNumber: wal.lastLogSequenceNumber,
-		data:              data,
+		LogSequenceNumber: wal.lastLogSequenceNumber,
+		Data:              data,
 		CRC:               GetCRC32Hash(wal.lastLogSequenceNumber, data),
 	}
 
@@ -266,8 +266,8 @@ func (wal *WAL) ReadAllLogsFromOffset(offset int) ([]*WAL_Record, error) {
 	}
 
 	var records []*WAL_Record
-	for _, file := range files {
-		_, filename := filepath.Split(file)
+	for _, filePath := range files {
+		_, filename := filepath.Split(filePath)
 		segmentIndex, err := strconv.Atoi(strings.TrimPrefix(filename, SegmentPrefix))
 		if err != nil {
 			return nil, err
@@ -277,13 +277,13 @@ func (wal *WAL) ReadAllLogsFromOffset(offset int) ([]*WAL_Record, error) {
 			continue
 		}
 
-		file, err := os.OpenFile(file, os.O_RDONLY, 0644)
+		file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
 		if err != nil {
 			return nil, err
 		}
-		defer file.Close()
-
+		
 		records_from_segment, err := readAllRecordsFromFile(file)
+		file.Close()
 		if err != nil {
 			return nil, err
 		}
