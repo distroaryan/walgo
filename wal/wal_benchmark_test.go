@@ -114,7 +114,7 @@ func BenchmarkConcurrentWriteThroughPut(b *testing.B) {
 	for b.Loop() {
 		start := time.Now()
 		// spin up 100 go routines
-		for range 100 {
+		for range 100 {		
 			// each go routine performs 10,000 entries
 			wg.Go(func() {
 				for k := range 10000 {
