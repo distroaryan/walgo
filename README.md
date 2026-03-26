@@ -1,6 +1,6 @@
 # Walgo
 
-A persistent, crash-safe **key-value store** written in Go, built on top of a custom **Write-Ahead Log (WAL)** engine. This project was written from scratch to deeply understand how databases achieve durability — the WAL layer is fully hand-rolled with no external storage libraries.
+A **key-value store** written in Go, built on top of a custom **Write-Ahead Log (WAL)** engine. This project was written from scratch to understand how databases achieve durability using write ahead logging. The WAL layer is written with no external storage libraries.
 
 ---
 
